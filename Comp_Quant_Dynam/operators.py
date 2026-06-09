@@ -94,3 +94,139 @@ def n_proj_operator_sparse(local_dims, idx, n):
     proj_op = diagonal_op_sparse(proj_arr.flatten()) # create a sparse diagonal matrix with the non-zero element on the diagonal corresponding to the n-th state
     projector_full = n_party_op_sparse(local_dims, idx, proj_op) # create the full projector operator for the n-th state of the idx-th party
     return projector_full
+
+
+##################### Solution sheet 5 ####################
+
+
+def Sx_sparse(N):
+    """
+    Returns the Sx operator for a system of `N` spin-1/2 particles as a sparse matrix.
+    The Sx operator is defined as:
+    Sx = (S+ + S-) / 2
+    where S+ and S- are the raising and lowering operators, respectively.
+    """
+    
+    S_plus_vec = np.sqrt((N - np.arange(0, N)) * (np.arange(0, N) + 1)) 
+    S_plus = sparse.diags_array(S_plus_vec, offsets=-1)
+    return (S_plus + S_plus.T) / 2
+
+def Sy_sparse(N):
+    """
+    Returns the Sy operator for a system of `N` spin-1/2 particles as a sparse matrix.
+    The Sy operator is defined as:
+    Sy = (S+ - S-) / (2i)
+    where S+ and S- are the raising and lowering operators, respectively.
+    """
+    
+    S_plus_vec = np.sqrt((N - np.arange(0, N)) * (np.arange(0, N) + 1)) 
+    S_plus = sparse.diags_array(S_plus_vec, offsets=-1)
+    return (S_plus - S_plus.T) / (2j)
+
+def Sz_sparse(N):
+    """
+    Returns the Sz operator for a system of `N` spin-1/2 particles as a sparse matrix.
+    The Sz operator is defined as:
+    Sz |m> = m |m>
+    where m is the magnetic quantum number corresponding to the state |m>.
+    """
+    
+    Sz_vec = np.arange(N + 1) - N / 2 # from -N/2 to N/2 in steps of 1 
+    return sparse.diags_array(Sz_vec)
+
+def build_spin_ops_sparse(N):
+    """
+    Returns the collective spin operators Sx, Sy, and Sz for a system of `N` spin-1/2 particles as sparse matrices.
+    The collective spin operators are defined as:
+    Sx = sum_i sigma_x^i / 2
+    Sy = sum_i sigma_y^i / 2
+    Sz = sum_i sigma_z^i / 2
+    where sigma_x^i, sigma_y^i, and sigma_z^i are the single-site Pauli operators acting on the i-th particle.
+    """
+
+    Sx = Sx_sparse(N)
+    Sy = Sy_sparse(N)
+    Sz = Sz_sparse(N)
+    return Sx, Sy, Sz
+
+def _T_positive_parity_symm(N):
+    """
+    Returns the basis-change matrix from the full Dicke basis to the
+    positive-parity symmetric subspace basis.
+    """
+
+    S = N / 2
+    full_dim = N + 1
+    L = int(np.floor(S)) + 1
+    T = np.zeros((full_dim, L), dtype=float)
+    for k in range(L):
+        m = S - k
+        i_pos = int(m + S)
+        i_neg = int(-m + S)
+        if abs(m) < 1e-12:
+            T[i_pos, k] = 1.0
+        else:
+            T[i_pos, k] = 1.0 / np.sqrt(2.0)
+            T[i_neg, k] = 1.0 / np.sqrt(2.0)
+    return T
+
+def Sx_symm(N):
+    """
+    Returns the Sx operator for a system of `N` spin-1/2 particles in the positive symmetric subspace as a sparse matrix.
+    The Sx operator is defined as:
+    Sx = (S+ + S-) / 2
+    where S+ and S- are the raising and lowering operators, respectively.
+    """
+
+    T = _T_positive_parity_symm(N)
+
+    Sx_full = Sx_sparse(N)
+    Sx_full_arr = Sx_full.toarray() if hasattr(Sx_full, "toarray") else np.array(Sx_full)
+    Sx_reduced = T.T @ (Sx_full_arr @ T)
+    return sparse.csr_array(Sx_reduced)
+
+def Sz2_symm(N):
+    """
+    Returns the Sz^2 operator for a system of `N` spin-1/2 particles in the positive symmetric subspace as a sparse matrix.
+    The Sz^2 operator is defined as:
+    Sz^2 |m> = m^2 |m>
+    where m is the magnetic quantum number corresponding to the state |m>.
+    Note that Sz vanishes in the positive symmetric subspace.
+    """
+
+    T = _T_positive_parity_symm(N)
+
+    Sz_full = Sz_sparse(N)
+    Sz_full_arr = Sz_full.toarray() if hasattr(Sz_full, "toarray") else np.array(Sz_full)
+    Sz2_reduced = T.T @ ((Sz_full_arr @ Sz_full_arr) @ T)
+    return sparse.csr_array(Sz2_reduced)
+
+def sigma_x_sparse():
+    """
+    Returns the single-site sigma_x operator for a spin-1/2 particle as a sparse matrix.
+    The sigma_x operator is defined as:
+    sigma_x |0> = |1>
+    sigma_x |1> = |0>
+    """
+
+    return sparse.csr_array([[0, 1], [1, 0]])
+
+def sigma_y_sparse():
+    """
+    Returns the single-site sigma_y operator for a spin-1/2 particle as a sparse matrix.
+    The sigma_y operator is defined as:
+    sigma_y |0> = -i |1>
+    sigma_y |1> = i |0>
+    """
+
+    return sparse.csr_array([[0, 1j], [-1j, 0]])
+
+def sigma_z_sparse():
+    """
+    Returns the single-site sigma_z operator for a spin-1/2 particle as a sparse matrix.
+    The sigma_z operator is defined as:
+    sigma_z |0> = -|0>
+    sigma_z |1> = |1>
+    """
+
+    return sparse.csr_array([[-1, 0], [0, 1]])

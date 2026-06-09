@@ -1,10 +1,15 @@
 import numpy as np   # standard numerics library
 import math
 from scipy.special import hermite as herm
+import scipy.sparse as sparse # routines for sparse matrices
+
+from Comp_Quant_Dynam.utility import state2idx, idx2state
+from Comp_Quant_Dynam.operators import diagonal_op_sparse, n_party_op_sparse, x_operator_sparse, Sx_sparse, Sz_sparse, Sx_symm, Sz2_symm
+
 #################### Solution sheet 1 ####################
 
 
-def HO_eigenstates_exact(n,x):
+def HO_eigenstates_exact(n, x):
     """
     Returns the n-th eigenstate of the quantum harmonic oscillator at position 'x' in numerical units.
     """
@@ -43,6 +48,7 @@ def HO_potential(x):
     
     return 0.5 * np.diag(x ** 2)
 
+
 #################### Solution sheet 2 ####################
 
 
@@ -73,20 +79,25 @@ def HO_potential_sparse(x):
     
     return sparse.diags_array(0.5 * x ** 2)
 
+
 #################### Solution sheet 3 ####################
 
 
 def step_potential(x, V0):
     """
-    Returns the potential energy of a step potential of step height 'V0' in the position basis for a grid 'x' as a diagonal matrix.
+    Returns the potential energy of a step potential of step height 'V0' in the position basis for a grid 'x' as a 1D array.
     The step potential is defined as V(x) = 0 for x < 0 and V(x) = V0 for x >= 0.
     """
-    potential = V0 * (1 + np.sign(x)) / 2
+    potential = V0 * (x >= 0).astype(float)
     return potential
 
 def barrier_potential(x, V0, width):
-    mask = np.heaviside(x + width/2, 1) - np.heaviside(x - width/2, 1)
-    return V0 * mask
+    """
+    Returns the potential energy of a barrier potential of height 'V0' and width 'width' in the position basis for a grid 'x' as a 1D array.
+    The barrier potential is defined as V(x) = 0 for |x| > width/2 and V(x) = V0 for |x| <= width/2.
+    """
+    potential = V0 * ((x >= -width/2) & (x <= width/2)).astype(float)
+    return potential
 
 
 ##################### Exercise sheet 4 ####################
@@ -262,3 +273,46 @@ def HO_product_eigenstates(N1, N2, xgrid):
         state_2 = HO_eigenstates_exact(state_ij[1], xgrid).reshape(1,len(xgrid))
         basis_state_pos[k] = np.kron(state_1, state_2)
     return basis_state_pos
+
+
+##################### Solution sheet 5 ####################
+
+
+def build_H_TFIM(N, ome):
+    """
+    Builds the Hamiltonian matrix for the transverse field Ising model (TFIM) for `N` spin-1/2 particles and transverse field strength `ome` as a sparse matrix.
+    The Hamiltonian is given by:
+    H = -1/N * Sz^2 - ome * Sx
+    where Sx and Sz are the collective spin operators in the x and z directions, respectively.
+    """
+    
+    Sx = Sx_sparse(N)
+    Sz = Sz_sparse(N)
+    H = -Sz @ Sz / N - ome * Sx
+    return H
+
+def build_H_TFIM_symm(N, ome):
+    """
+    Builds the Hamiltonian matrix for the transverse field Ising model (TFIM) for `N` spin-1/2 particles in the positive symmetric subspace and transverse field strength `ome` as a sparse matrix.
+    The Hamiltonian is given by:
+    H = -1/N * Sz^2 - ome * Sx
+    where Sx and Sz are the collective spin operators in the x and z directions, respectively.
+    """
+    
+    Sx = Sx_symm(N)
+    Sz2 = Sz2_symm(N)
+    H_symm = -Sz2 / N - ome * Sx
+    return H_symm
+
+##################### Solution sheet 7 ####################
+
+def E_MF(z, phi, omega):
+    """
+    Returns the mean-field energy of the transverse field Ising model (TFIM) for a given magnetization `z`, phase `phi`, and transverse field strength `omega`.
+    The mean-field energy is given by:
+    E_MF(z, phi) = -z^2 / 2 - omega * sqrt(1 - z^2) * cos(phi)
+    where z is the magnetization along the z-axis, phi is the phase of the transverse magnetization in the x-y plane, and omega is the strength of the transverse field.
+    """
+    r2 = 1 - z ** 2
+    r2 = np.maximum(r2, 1e-10) # avoid numerical issues when z is close to 1 or -1, which would lead to r being close to zero and causing instability in the calculation of the mean-field energy
+    return -z ** 2 / 2 - omega * np.sqrt(r2) * np.cos(phi)
