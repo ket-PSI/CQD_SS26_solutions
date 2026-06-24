@@ -14,7 +14,7 @@ dependencies = [
     "matplotlib",
     "IPython",
     "ipywidgets",
-    "notebook<7",
+    "notebook<8",
     "jupyter_contrib_nbextensions",
     "qutip",
 ]
