@@ -1,6 +1,8 @@
 import numpy as np
 from scipy import sparse
 
+import Comp_Quant_Dynam.utility as util
+
 
 ##################### Solution sheet 4 ####################
 
@@ -230,3 +232,100 @@ def sigma_z_sparse():
     """
 
     return sparse.csr_array([[-1, 0], [0, 1]])
+
+
+###################### Solution sheet 8 ######################
+
+def build_single_spin_ops_sparse(N):
+    """
+    Returns the single-site spin operators Sx, Sy, and Sz for a system of `N` spin-1/2 particles as sparse matrices.
+    The single-site spin operators are defined as:
+    sx^i = sigma_x^i / 2
+    sy^i = sigma_y^i / 2
+    sz^i = sigma_z^i / 2
+    where sigma_x^i, sigma_y^i, and sigma_z^i are the single-site Pauli operators acting on the i-th particle.
+    The function returns three lists sxi, syi, and szi, where sxi[i], syi[i], and szi[i] are sx^i, sy^i, and sz^i, respectively, represented as sparse matrices acting on the full Hilbert space of the system.
+    """
+
+    sxSp = sigma_x_sparse() / 2
+    sySp = sigma_y_sparse() / 2
+    szSp = sigma_z_sparse() / 2
+    
+    dims = [2] * N # local dimensions for each spin-1/2 particle
+
+    sxi=[]
+    syi=[]
+    szi=[]
+    for i in range(N):
+        sxi.append(n_party_op_sparse(dims, i, sxSp))
+        syi.append(n_party_op_sparse(dims, i, sySp))
+        szi.append(n_party_op_sparse(dims, i, szSp))
+
+    return sxi, syi, szi
+
+###################### Solution sheet 9 ######################
+
+
+def build_single_spin_1_ops_sparse():
+    """
+    Returns the single-site spin-1 operators S+, S-, and Sz as sparse matrices.
+    """
+
+    sm = np.array([[0, 1, 0], [0, 0, 1], [0, 0, 0]]) * np.sqrt(2)
+    sp = sm.T
+    sz = np.array([[-1., 0, 0], [0, 0, 0], [0, 0, 1.]])
+
+    sp_sparse = sparse.csr_array(sp)
+    sm_sparse = sparse.csr_array(sm)
+    sz_sparse = sparse.csr_array(sz)
+
+    return sp_sparse, sm_sparse, sz_sparse
+
+def get_coeff_MPS(state, a_tensor_arr):
+    """
+    Returns the coefficient of the product `state` |state> in the MPS representation defined by the list of tensors `a_tensor_arr`.
+    The function expects a `state` vector of the form [s1, s2, ..., sN] with si in {-1, 0, 1}, where si corresponds to the local state of the i-th spin-1 particle.
+    The coefficient is calculated by contracting the tensors in the MPS representation.
+    """
+
+    curr_mat = a_tensor_arr[1 - state[0]]
+    for i in range(1, len(state)):
+        curr_mat = curr_mat @ a_tensor_arr[1 - state[i]]
+    coeff = curr_mat.trace()
+    return coeff
+
+def build_E_mat_MPS(a_tensor_arr, op=None):
+    """
+    Builds the E-matrix for a given list of tensors `A_tensor_list` and a local operator `op`, where each tensor corresponds to a local operator in the MPS representation.
+    By default, the identity operator is used, which gives the E-matrix needed for calculating the norm.
+    """
+    if op is None:
+        op = sparse.csr_array(sparse.eye_array(len(a_tensor_arr)))
+    assert op.shape == (len(a_tensor_arr), len(a_tensor_arr)), "Operator shape must match the number of tensors"
+    shape = sparse.kron(a_tensor_arr[0], a_tensor_arr[0].conjugate()).shape
+    E_op_mat = np.zeros(shape, dtype='complex')
+    for i in range(len(a_tensor_arr)):
+        for j in range(len(a_tensor_arr)):
+            if np.isclose(np.abs(op[i, j]), 0):
+                continue
+            E_op_mat += op[i, j] * sparse.kron(a_tensor_arr[i], a_tensor_arr[j].conjugate())
+    return E_op_mat
+
+def corr_func_MPS(N, E_mat, idxs, E_op_arr):
+    """
+    Computes the expectation value of a the correlation function for a given list of local E-operators `E_op_arr` at the specified indices `idxs` in a system of size `N`, using the E-matrix `E_mat` for all other sites.
+    """
+    idxs = np.asarray(idxs)
+    E_op_arr = np.asarray(E_op_arr)
+    asort = np.argsort(idxs)
+    idxs = idxs[asort]
+    E_op_arr = E_op_arr[asort]
+
+    curr_mat = np.linalg.matrix_power(E_mat, idxs[0])
+    for i in range(len(idxs)):
+        curr_mat = curr_mat @ E_op_arr[i]
+        if i < len(idxs) - 1:
+            curr_mat = curr_mat @ np.linalg.matrix_power(E_mat, idxs[i + 1] - idxs[i] - 1)
+    curr_mat = curr_mat @ np.linalg.matrix_power(E_mat, N - 1 - idxs[-1])
+
+    return curr_mat.trace()

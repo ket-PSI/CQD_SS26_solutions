@@ -5,6 +5,7 @@ import scipy.sparse as sparse # routines for sparse matrices
 
 from Comp_Quant_Dynam.utility import state2idx, idx2state
 from Comp_Quant_Dynam.operators import diagonal_op_sparse, n_party_op_sparse, x_operator_sparse, Sx_sparse, Sz_sparse, Sx_symm, Sz2_symm
+import Comp_Quant_Dynam.operators as ops
 
 #################### Solution sheet 1 ####################
 
@@ -316,3 +317,78 @@ def E_MF(z, phi, omega):
     r2 = 1 - z ** 2
     r2 = np.maximum(r2, 1e-10) # avoid numerical issues when z is close to 1 or -1, which would lead to r being close to zero and causing instability in the calculation of the mean-field energy
     return -z ** 2 / 2 - omega * np.sqrt(r2) * np.cos(phi)
+
+
+###################### Solution sheet 8 ######################
+
+def build_H_TFIM_individual(N, ome):
+    """
+    Builds the Hamiltonian matrix for the transverse field Ising model (TFIM) for `N` spin-1/2 particles and transverse field strength `ome` as a sparse matrix
+    The Hamiltonian is given by:
+    H = - sum_i sigma_z^i sigma_z^{i+1} - ome * sum_i sigma_x^i
+    where sigma_z^i and sigma_x^i are the Pauli z and x operators acting on the i-th particle, respectively, and we assume periodic boundary conditions, i.e., sigma_z^N = sigma_z^0.
+    """
+    
+    dims_local = [2] * N
+    sig_x = [n_party_op_sparse(dims_local, i, ops.sigma_x_sparse()) for i in range(N)]
+    sig_z = [n_party_op_sparse(dims_local, i, ops.sigma_z_sparse()) for i in range(N)]
+
+    dim_global = 2 ** N
+    H = sparse.csr_array((dim_global, dim_global), dtype=complex)
+    for i in range(N):
+        H -= ome * sig_x[i]
+        H -= sig_z[i] @ sig_z[(i + 1) % N] # periodic boundary conditions
+    return H
+
+def E_TFIM_individual_exact(N, B):
+    """
+    Returns the exact ground state energy of the transverse field Ising model (TFIM) for `N` spin-1/2 particles and transverse field strength `B`.
+    The exact ground state energy can be calculated using the Jordan-Wigner transformation, which maps the spin-1/2 system to a system of free fermions, and then diagonalizing the resulting quadratic fermionic Hamiltonian. The exact ground state energy is given by:
+    E_exact = - sum_k sqrt(1 + B^2 + 2 * B * cos(2 * pi * k / N))
+    where the sum is taken over the momentum modes k = -(N-1)/2, ..., (N-1)/2.
+    """
+    assert N % 2 == 0, "The exact solution for the ground state energy of the TFIM is only implemented for even N"
+    cosine_term = 2 * B * np.cos(2 * np.pi / N * np.arange(-(N - 1) / 2, (N - 1) / 2 + 1, 1))
+    E_exact = -np.sum(np.sqrt(1 + B ** 2 + cosine_term)) # analytical ground state energy
+    return E_exact
+
+def build_H_TFIM_A2A(N, B):
+    """
+    Builds the Hamiltonian matrix for the all-to-all transverse field Ising model (TFIM) for `N` spin-1/2 particles and transverse field strength `B` as a sparse matrix.
+    The Hamiltonian is given by:
+    H = -1/N * Sz^2 - B * Sx
+    where Sx and Sz are the collective spin operators in the x and z directions, respectively.
+    """
+
+    dim_global = 2 ** N
+    sxis, syis, szis = ops.build_single_spin_ops_sparse(N)
+    H_mat = sparse.csr_matrix((dim_global, dim_global))
+    for i in range(N):
+        for j in range(N):
+            H_mat -= szis[i] @ szis[j] / N # interaction term
+        H_mat -= B * sxis[i] # field term
+    #H_mat = H_mat + H_mat.T - sparse.diags(H_mat.diagonal()) # make it Hermitian
+    return H_mat
+
+###################### Solution sheet 10 ######################
+
+
+def build_H_tilted_TFIM_individual(N, ome, g):
+    """
+    Builds the Hamiltonian matrix for the tilted transverse field Ising model (TFIM) for `N` spin-1/2 particles and transverse field strength `ome` and longitudinal field strength `g` as a sparse matrix
+    The Hamiltonian is given by:
+    H = - sum_i sigma_z^i sigma_z^{i+1} - ome * sum_i sigma_x^i - g * sum_i sigma_z^i
+    where sigma_z^i and sigma_x^i are the Pauli z and x operators acting on the i-th particle, respectively, and we assume periodic boundary conditions, i.e., sigma_z^N = sigma_z^0.
+    """
+    
+    dims_local = [2] * N
+    sig_x = [n_party_op_sparse(dims_local, i, ops.sigma_x_sparse()) for i in range(N)]
+    sig_z = [n_party_op_sparse(dims_local, i, ops.sigma_z_sparse()) for i in range(N)]
+
+    dim_global = 2 ** N
+    H = sparse.csr_array((dim_global, dim_global), dtype=complex)
+    for i in range(N):
+        H -= ome * sig_x[i]
+        H -= g * sig_z[i]
+        H -= sig_z[i] @ sig_z[(i + 1) % N] # periodic boundary conditions
+    return H

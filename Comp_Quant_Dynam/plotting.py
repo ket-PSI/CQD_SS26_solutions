@@ -2,6 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from numpy import pi, sqrt, exp
 from scipy.sparse import linalg as sLA
+
+
+import Comp_Quant_Dynam.hamiltonians as hams
 import Comp_Quant_Dynam.utility as utility
 import Comp_Quant_Dynam.operators as operators
 

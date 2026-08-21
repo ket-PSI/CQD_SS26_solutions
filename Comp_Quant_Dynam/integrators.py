@@ -6,6 +6,8 @@ import scipy.sparse.linalg as sLA
 import time
 import warnings
 
+from scipy.integrate import ode
+
 from Comp_Quant_Dynam.utility import expectation_value
 from Comp_Quant_Dynam.unitaries import calc_expv_ED
 

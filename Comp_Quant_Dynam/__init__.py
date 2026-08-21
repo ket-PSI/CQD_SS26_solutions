@@ -7,5 +7,6 @@ __all__ = [
     "unitaries",
     "operators",
     "integrators",
+    "functions",
     
 ]
